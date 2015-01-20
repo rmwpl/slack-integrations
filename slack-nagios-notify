@@ -1,179 +1,92 @@
-#! /usr/local/bin/perl
+#!/usr/bin/perl
 use strict;
-
-# Time-stamp: "11 July 2014, 09:55:23 (khera@yertle.int.kcilink.com)"
 
 use HTTP::Request::Common qw(POST);
 use LWP::UserAgent;
 use JSON;
-use Getopt::Std;
+use Getopt::Long;
 
-## CUSTOMIZE
-
-my $domain = 'mygroup.slack.com';
 my $token = 'XXXX';                 # from Incoming Webhooks Integration
 my $default_channel = '#technical'; # override with -C flag.
 
-## END CUSTOMIZE
+my ($channel,$users,$type,$host,$service,$timestamp,$serviceState,$hostState,$output,$srvAckAuthor,$srvAckComment,$hosAckAuthor,$hosAckComment);
 
-=pod
+GetOptions( "channel=s"       => \$channel,       # slack channel name  $CONTACTEMAIL$
+            "token=s"         => \$token,         # slack integration token
+            "users=s"         => \$users,         # slack mentions      $CONTACTPAGER$
+            "type=s"          => \$type,          # notification type   $NOTIFICATIONTYPE$
+            "host=s"          => \$host,          # host name           $HOSTNAME$
+            "service=s"       => \$service,       # service desc        $SERVICEDESC$
+            "timestamp=s"     => \$timestamp,     # timestamp           $SHORTDATETIME$
+            "servicestate=s"  => \$serviceState,  # service state       $SERVICESTATE$
+            "hoststate=s"     => \$hostState,     # host state          $HOSTSTATE$
+            "output=s"        => \$output,        # service output      $SERVICEOUTPUT$
+            "srvackauthor=s"  => \$srvAckAuthor,  # srv ack author      $SERVICEACKAUTHOR$
+            "srvackcomment=s" => \$srvAckComment, # srv ack comment     $SERVICEACKCOMMENT$
+            "hosackauthor=s"  => \$hosAckAuthor,  # host ack author     $HOSTACKAUTHOR$
+            "hosackcomment=s" => \$hosAckComment, # host ack comment    $HOSTACKCOMMENT$
+        );
 
-=head1 slack-nagios-notify
-
-Post a nagios notificaion message to a channel in a slack.com group using the
-"Incoming Webhooks" integration.
-
-Expected integration in Nagios is to define a notifier for services
-and for hosts like these:
-
-  define command {
-    command_name    notify-slack
-    command_line    /usr/local/sbin/slack-nagios-notify -C $CONTACTEMAIL$ -t "$NOTIFICATIONTYPE$" -a "$HOSTALIAS$" -d "$SERVICEDESC$" -w "$SHORTDATETIME$" -s "$SERVICESTATE$" -o "$SERVICEOUTPUT$" -u "$SERVICEACKAUTHOR$" -c "$SERVICEACKCOMMENT$"
-  }
-
-  define command {
-    command_name    host-notify-slack
-    command_line    /usr/local/sbin/slack-nagios-notify -C $CONTACTEMAIL$ -t "$NOTIFICATIONTYPE$" -a "$HOSTALIAS$" -d "host" -w "$SHORTDATETIME$" -s "$SERVICESTATE$" -o "$SERVICEOUTPUT$" -u "$SERVICEACKAUTHOR$" -c "$SERVICEACKCOMMENT$"
-  }
-
-Then add a user named C<slack> to be notified using these notifier commands:
-
- define contact {
-   contact_name                    slack
-   alias                           Slack App
-   service_notification_period     24x7
-   host_notification_period        24x7
-   service_notification_options    w,u,c,r
-   host_notification_options       d,u,r
-   service_notification_commands   notify-slack
-   host_notification_commands      host-notify-slack
-   email                           \#general
- }
-
-The C<email> in the contact is the channel name to post the notification for
-this contact.
-
-And finally, add this new user C<slack> to whatever notifications you need.
-
-To configure Slack, you need to enable the Incoming Webhooks
-integration. The C<$token> variable at the top of this script needs to
-be set to the token from that integration, and the C<$domain> needs to
-be your Slack domain name for your group.
-
-=cut
-
-# parse command line for pieces of nagios notification to fill into
-# message. they correspond to nagios notification string variables:
-#
-# -C channel
-# -t $NOTIFICATIONTYPE$
-# -a $HOSTALIAS$
-# -d $SERVICEDESC$
-# -w $SHORTDATETIME$
-# -s $SERVICESTATE$
-# -o $SERVICEOUTPUT$
-# -u $SERVICEACKAUTHOR$ (used if ACK type)
-# -c $SERVICEACKCOMMENT$ (used if ACK type)
-
-my %opts;
-getopts('C:t:a:d:w:s:o:u:c:',\%opts);
 
 my $payload = {
-	       channel => $opts{C} // $default_channel,
-	       username => 'nagios',
-	       icon_emoji => ':construction:',
-	       text => $opts{t},
+           channel => $channel // $default_channel,
+           username => 'Icinga',
+           icon_emoji => ':construction:',
+           text =>  "Icinga notification $users: *$type*" ,
+           link_names => 1,
              };
 
-if (not exists $opts{t}) {
+if ($type eq '') {
   die "must specify -t\n";
 
-} elsif ($opts{t} eq 'PROBLEM') {
+} elsif ($type eq 'PROBLEM') {
   $payload->{text} .= ' :scream:';
   $payload->{attachments} = [
     {
-      fallback => "$opts{a}/$opts{d} $opts{w} State: $opts{s} $opts{o}",
-      pretext => "Host $opts{a} at $opts{w}",
-      text => "Service: $opts{d}",
+      fallback => "$timestamp: $host/$service $hostState/$serviceState $output",
+      text => "$timestamp: $host/$service $hostState/$serviceState",
       color => 'danger',
       fields => [
         {
           title => 'State',
-          value => $opts{s},
+          value => $serviceState,
           short => 'false',
         },
         {
           title => 'Detail',
-          value => $opts{o},
+          value => $output,
           short => 'false',
         }
       ],                        # fields
     },                          # attachment 1
   ];
 
-} elsif ($opts{t} eq 'RECOVERY') {
+} elsif ($type eq 'RECOVERY') {
   $payload->{text} .= ' :smiley:';
   $payload->{attachments} = [
     {
-      fallback => "$opts{a}/$opts{d} $opts{w} State: $opts{o}",
-      pretext => "Host $opts{a} at $opts{w}",
-      text => "Service: $opts{d}",
+      fallback => "$timestamp: $host/$service $hostState/$serviceState $output",
+      text => "$timestamp: $host/$service $hostState/$serviceState",
       color => 'good',
       fields => [
         {
           title => 'Detail',
-          value => $opts{o},
+          value => $output,
           short => 'false',
         }
       ],                        # fields
     },                          # attachment 1
-  ];
-
-} elsif ($opts{t} eq 'ACKNOWLEDGEMENT') {
-  $payload->{text} .= ' :wrench:';
-  $payload->{attachments} = [
-    {
-      fallback => "$opts{a}/$opts{d} $opts{w} State: $opts{s} $opts{o}",
-      pretext => "Host $opts{a} at $opts{w}",
-      text => "Service: $opts{d}",
-      color => 'danger',
-      fields => [
-        {
-          title => 'State',
-          value => $opts{s},
-          short => 'false',
-        },
-        {
-          title => 'Detail',
-          value => $opts{o},
-          short => 'false',
-        }
-      ],                        # fields
-    },                          # attachment 1
-
-    {
-      fallback => "$opts{u} $opts{c}",
-      pretext => "$opts{c}",
-      color => 'warning',
-      fields => [
-        {
-          title => 'Handled By',
-          value => $opts{u},
-          short => 'true',
-        },
-      ],                        # fields
-    },                          # attachment 2
   ];
 } else { # something unknown, just display it flat.
-  $payload->{color} = 'danger';
-  $payload->{text} = "$opts{t} $opts{a}/$opts{d} $opts{w} State: $opts{s} $opts{o} $opts{u} $opts{c}";
+  # $payload->{color} = 'danger';
+  # $payload->{text} = "$opts{t} $opts{a}/$opts{d} $opts{w} State: $opts{s} $opts{o} $opts{u} $opts{c}";
 }
 
 
 my $ua = LWP::UserAgent->new;
 $ua->timeout(15);
 
-my $req = POST("https://${domain}/services/hooks/incoming-webhook?token=${token}", ['payload' => encode_json($payload)]);
+my $req = POST("https://hooks.slack.com/services/${token}", ['payload' => encode_json($payload)]);
 
 my $resp = $ua->request($req);
 
@@ -181,14 +94,7 @@ if ($resp->is_success) {
   #print $resp->decoded_content;  # or whatever
 }
 else {
+  print $resp->decoded_content;  # or whatever
   die $resp->status_line;
 }
 exit(0);
-
-=pod
-
-=head1 COPYRIGHT
-
-Copyright 2014 Vick Khera <vivek@mailermailer.com>
-
-=cut
