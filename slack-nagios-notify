@@ -14,7 +14,7 @@ my ($icingaBaseUrl,$color,$target,$channel,$users,$type,$host,$service,$timestam
 GetOptions( "channel=s"       => \$channel,       # slack channel name  $CONTACTEMAIL$
             "token=s"         => \$token,         # slack integration token
             "target=s"        => \$target,        # notification target - host or service
-            "baseurl=s"       => \$icingaBaseUrl  # icinga base URL     $CONTACTADDRESS1$
+            "baseurl=s"       => \$icingaBaseUrl, # icinga base URL     $CONTACTADDRESS1$
             "users=s"         => \$users,         # slack mentions      $CONTACTPAGER$
             "type=s"          => \$type,          # notification type   $NOTIFICATIONTYPE$
             "host=s"          => \$host,          # host name           $HOSTNAME$
