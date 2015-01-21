@@ -50,7 +50,7 @@ if ($type eq '' or $target eq '') {
     $color = 'good';
 } elsif ($type eq 'ACKNOWLEDGEMENT') {
     $color = '#439FE0';
-    $output = "ack author: $ackAuthor ack comment: $ackComment";
+    $output = "author: $ackAuthor comment: $ackComment";
 }
 
 if ($target eq 'HOST') {
