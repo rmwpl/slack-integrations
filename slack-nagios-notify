@@ -61,7 +61,7 @@ if ($target eq 'HOST') {
 } elsif ($target eq 'SERVICE') {
     $payload->{attachments} = [{
         fallback => "$timestamp: $host/$service $serviceState $output",
-        title => "$timestamp: Service $service at $host is $serviceState",
+        title => "$timestamp: Service $service on $host is $serviceState",
         color => $color,
         fields => [
             {
