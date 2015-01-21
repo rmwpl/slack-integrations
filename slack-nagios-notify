@@ -60,14 +60,14 @@ if ($target eq 'HOST') {
         fallback => "$timestamp: $host $hostState $output",
         text => "$timestamp: Host *$host* is *$hostState*",
         color => $color,
-        "mrkdwn_in": ["text"]
+        mrkdwn_in => ["text"]
     }];
 } elsif ($target eq 'SERVICE') {
     $payload->{attachments} = [{
         fallback => "$timestamp: $host/$service $serviceState $output",
         text => "$timestamp: Service *$service* on $host is *$serviceState*",
         color => $color,
-        "mrkdwn_in": ["text"],
+        mrkdwn_in => ["text"],
         fields => [
             {
                 title => 'Detailed information',
