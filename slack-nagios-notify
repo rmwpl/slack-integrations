@@ -9,10 +9,11 @@ use Getopt::Long;
 my $token = 'XXXX';                 # from Incoming Webhooks Integration
 my $default_channel = '#technical'; # override with -C flag.
 
-my ($channel,$users,$type,$host,$service,$timestamp,$serviceState,$hostState,$output,$srvAckAuthor,$srvAckComment,$hosAckAuthor,$hosAckComment);
+my ($color,$target,$channel,$users,$type,$host,$service,$timestamp,$serviceState,$hostState,$output,$srvAckAuthor,$srvAckComment,$hosAckAuthor,$hosAckComment);
 
 GetOptions( "channel=s"       => \$channel,       # slack channel name  $CONTACTEMAIL$
             "token=s"         => \$token,         # slack integration token
+            "target=s"        => \$target,        # notification target - host or service
             "users=s"         => \$users,         # slack mentions      $CONTACTPAGER$
             "type=s"          => \$type,          # notification type   $NOTIFICATIONTYPE$
             "host=s"          => \$host,          # host name           $HOSTNAME$
@@ -27,61 +28,55 @@ GetOptions( "channel=s"       => \$channel,       # slack channel name  $CONTACT
             "hosackcomment=s" => \$hosAckComment, # host ack comment    $HOSTACKCOMMENT$
         );
 
+my $mention;
+$mention = "$users icinga notification: *$type*" if($users ne '');
 
 my $payload = {
-           channel => $channel // $default_channel,
-           username => 'Icinga',
-           icon_emoji => ':construction:',
-           text =>  "Icinga notification $users: *$type*" ,
-           link_names => 1,
-             };
+                channel => $channel // $default_channel,
+                username => 'Icinga',
+                icon_emoji => ':construction:',
+                text =>  $mention,
+                link_names => 1,
+              };
 
-if ($type eq '') {
-  die "must specify -t\n";
-
+if ($type eq '' or $target eq '') {
+    die "must specify type and target\n";
 } elsif ($type eq 'PROBLEM') {
-  $payload->{text} .= ' :scream:';
-  $payload->{attachments} = [
-    {
-      fallback => "$timestamp: $host/$service $hostState/$serviceState $output",
-      text => "$timestamp: $host/$service $hostState/$serviceState",
-      color => 'danger',
-      fields => [
-        {
-          title => 'State',
-          value => $serviceState,
-          short => 'false',
-        },
-        {
-          title => 'Detail',
-          value => $output,
-          short => 'false',
-        }
-      ],                        # fields
-    },                          # attachment 1
-  ];
-
+    if ($target eq 'HOST') {
+        $color = '#000000';
+    } elsif ($target eq 'SERVICE') {
+        $color = 'danger';
+    }
 } elsif ($type eq 'RECOVERY') {
-  $payload->{text} .= ' :smiley:';
-  $payload->{attachments} = [
-    {
-      fallback => "$timestamp: $host/$service $hostState/$serviceState $output",
-      text => "$timestamp: $host/$service $hostState/$serviceState",
-      color => 'good',
-      fields => [
-        {
-          title => 'Detail',
-          value => $output,
-          short => 'false',
-        }
-      ],                        # fields
-    },                          # attachment 1
-  ];
-} else { # something unknown, just display it flat.
-  # $payload->{color} = 'danger';
-  # $payload->{text} = "$opts{t} $opts{a}/$opts{d} $opts{w} State: $opts{s} $opts{o} $opts{u} $opts{c}";
+    $color = 'good';
+} elsif ($type eq '') {
 }
 
+if ($target eq 'HOST') {
+    $payload->{attachments} = [{
+        fallback => "$timestamp: $host $hostState $output",
+        title => "$timestamp: Host $host is $hostState",
+        color => $color
+    }];
+} elsif ($target eq 'SERVICE') {
+    $payload->{attachments} = [{
+        fallback => "$timestamp: $host/$service $serviceState $output",
+        title => "$timestamp: Service $service at $host is $serviceState",
+        color => $color,
+        fields => [
+            {
+                title => 'State',
+                value => $serviceState,
+                short => 'short',
+            },
+            {
+                title => 'Detail',
+                value => $output,
+                short => 'false',
+            }
+          ],
+    }];
+}
 
 my $ua = LWP::UserAgent->new;
 $ua->timeout(15);
